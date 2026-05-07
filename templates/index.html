@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Core Drop P2P | Obsidian</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;900&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        :root { --purple: #a855f7; --blue: #3b82f6; --dark: #050505; --glass: rgba(255, 255, 255, 0.05); }
+        body { background: var(--dark); color: white; font-family: 'Poppins', sans-serif; min-height: 100vh; overflow: hidden; perspective: 2000px; }
+        #stage { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.8s cubic-bezier(0.2, 1, 0.2, 1); }
+        #stage.active { justify-content: flex-start; padding-top: 50px; }
+        
+        h1 { font-size: 5rem; font-weight: 900; letter-spacing: -3px; background: linear-gradient(to bottom, #fff, rgba(255,255,255,0.3)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 20px; }
+        
+        #qrcode { background: #fff; padding: 15px; border-radius: 25px; box-shadow: 0 0 30px rgba(168,85,247,0.4); position: relative; }
+        .qr-wrapper { position: relative; transition: 0.5s; }
+        .qr-wrapper.hidden { opacity: 0; transform: scale(0.5); pointer-events: none; }
+
+        .qr-star { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; background: white; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px var(--purple); }
+        .qr-star img { width: 35px; }
+
+        #file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; width: 80%; margin-top: 50px; opacity: 0; }
+        #stage.active #file-grid { opacity: 1; }
+        .file-tile { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 25px; text-align: center; animation: slideIn 0.5s ease-out; }
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="stage">
+        <h1>CORE DROP</h1>
+        <div class="qr-wrapper" id="qr-panel">
+            <div id="qrcode"></div>
+            <div class="qr-star"><img src="https://img.icons8.com/?size=96&id=vZusEhy284j7&format=png"></div>
+        </div>
+        <div id="file-grid"></div>
+    </div>
+
+    <script>
+        const socket = io();
+        const stage = document.getElementById('stage');
+        const qrPanel = document.getElementById('qr-panel');
+        const fileGrid = document.getElementById('file-grid');
+        
+        // Inicjalizacja PeerJS (P2P)
+        const peer = new Peer();
+
+        peer.on('open', (id) => {
+            console.log('Mój ID Peer:', id);
+            const mobileUrl = window.location.origin + "/mobile?peerId=" + id;
+            new QRCode(document.getElementById("qrcode"), {
+                text: mobileUrl,
+                width: 200, height: 200,
+                correctLevel: QRCode.CorrectLevel.H
+            });
+        });
+
+        peer.on('connection', (conn) => {
+            conn.on('data', (data) => {
+                if (data.type === 'file') {
+                    const blob = new Blob([data.file]);
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Automatyczne pobieranie
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = data.name;
+                    a.click();
+
+                    // Dodanie do UI
+                    const tile = document.createElement('div');
+                    tile.className = 'file-tile';
+                    tile.innerHTML = `
+                        <img src="https://img.icons8.com/fluency/48/file.png" style="margin-bottom:10px;">
+                        <div style="font-size: 0.9rem; font-weight: 600;">${data.name}</div>
+                        <div style="font-size: 0.7rem; color: #888;">${data.size}</div>
+                    `;
+                    fileGrid.insertBefore(tile, fileGrid.firstChild);
+                }
+            });
+        });
+
+        socket.on('device_connected', () => {
+            stage.classList.add('active');
+            qrPanel.classList.add('hidden');
+        });
+
+        // Efekt Tilt 3D
+        document.addEventListener('mousemove', (e) => {
+            const x = (e.clientX - window.innerWidth / 2) / 50;
+            const y = (e.clientY - window.innerHeight / 2) / 50;
+            stage.style.transform = `rotateX(${-y}deg) rotateY(${x}deg)`;
+        });
+    </script>
+</body>
+</html>
