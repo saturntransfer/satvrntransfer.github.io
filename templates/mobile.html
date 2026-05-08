@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SATVRN MOBILE | P2P</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;900&display=swap" rel="stylesheet">
+    <style>
+        body { background: #030303; color: white; font-family: 'Poppins', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .glass-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); padding: 30px 20px; border-radius: 40px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        h2 { font-weight: 900; background: linear-gradient(to bottom, #fff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 25px; letter-spacing: -1px; }
+        
+        .upload-area { border: 2px dashed rgba(168, 85, 247, 0.4); border-radius: 30px; padding: 35px 20px; position: relative; cursor: pointer; transition: 0.3s; margin-bottom: 20px; }
+        .progress-bar { width: 0%; height: 5px; background: #a855f7; position: absolute; bottom: 0; left: 0; border-radius: 0 0 30px 30px; transition: 0.3s; }
+        
+        .clip-box { margin-bottom: 25px; }
+        input[type="text"] { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 12px; border-radius: 15px; margin-bottom: 10px; font-family: inherit; }
+        .btn-sm { background: #a855f7; border: none; color: white; padding: 10px; border-radius: 12px; width: 100%; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+        
+        #st { font-size: 0.7rem; color: #666; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        #file-list { text-align: left; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; }
+        .file-item { background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.85rem; }
+        .file-item a { color: #a855f7; text-decoration: none; font-weight: 900; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+    <div class="glass-card">
+        <h2>SATVRN P2P</h2>
+        
+        <div class="upload-area" onclick="document.getElementById('f').click()">
+            <div style="font-size: 2.5rem; margin-bottom: 10px;">📤</div>
+            <div style="font-weight: 600;">Wyślij do PC</div>
+            <div id="pb" class="progress-bar"></div>
+        </div>
+        <input type="file" id="f" multiple hidden>
+
+        <div class="clip-box">
+            <input type="text" id="clip-mob" placeholder="Tekst schowka...">
+            <button class="btn-sm" id="send-clip-mob">Synchronizuj Schowek</button>
+        </div>
+
+        <div id="st">Łączenie...</div>
+        
+        <div id="file-list">
+            <div style="font-size: 0.65rem; color: #444; margin-bottom: 10px; font-weight: 900; letter-spacing: 1px;">PLIKI ODEBRANE Z PC</div>
+        </div>
+    </div>
+
+    <script>
+        const status = document.getElementById('st'), pb = document.getElementById('pb'), fileInput = document.getElementById('f'), fileList = document.getElementById('file-list'), clipInput = document.getElementById('clip-mob');
+        const targetId = new URLSearchParams(window.location.search).get('peerId');
+        
+        const peer = new Peer();
+        let conn;
+
+        peer.on('open', () => {
+            if (targetId) {
+                conn = peer.connect(targetId);
+                conn.on('open', () => { status.innerText = "POŁĄCZONO P2P"; });
+                conn.on('data', (data) => {
+                    if (data.type === 'file') {
+                        const url = URL.createObjectURL(new Blob([data.file]));
+                        const div = document.createElement('div');
+                        div.className = 'file-item';
+                        div.innerHTML = `<span>${data.filename}</span><a href="${url}" download="${data.filename}">POBIERZ</a>`;
+                        fileList.appendChild(div);
+                    } else if (data.type === 'clip') {
+                        clipInput.value = data.text;
+                    }
+                });
+            }
+        });
+
+        // WYŚLIJ DO PC
+        fileInput.onchange = async function() {
+            if (!conn) return;
+            const files = this.files;
+            for(let i=0; i < files.length; i++) {
+                const f = files[i];
+                const reader = new FileReader();
+                reader.onload = () => {
+                    conn.send({ type: 'file', file: reader.result, filename: f.name, size: (f.size/1024).toFixed(1) + " KB" });
+                    pb.style.width = ((i+1)/files.length * 100) + "%";
+                };
+                reader.readAsArrayBuffer(f);
+            }
+        };
+
+        // WYŚLIJ SCHOWEK DO PC
+        document.getElementById('send-clip-mob').onclick = () => {
+            if (conn && clipInput.value) {
+                conn.send({ type: 'clip', text: clipInput.value });
+            }
+        };
+    </script>
+</body>
+</html>
